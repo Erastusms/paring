@@ -16,8 +16,8 @@ jobs:
         ports: ['5432:5432']
         env:
           POSTGRES_USER: user
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: app_db
+          POSTGRES_PASSWORD: admin
+          POSTGRES_DB: paring
       redis:
         image: redis:7
         ports: ['6379:6379']
