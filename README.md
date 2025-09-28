@@ -1,6 +1,3 @@
-# paring
-Paring adalah singkatan dari Pasar Miring. Aplikasi berbasis microservice yg bertujuan untuk menciptakan transaksi jual beli
-
 # 🚀 Sprint 1 – Foundation & Project Setup (Week 1–2)
 
 🎯 **Goal:** Menyiapkan pondasi proyek & tooling agar tim bisa mulai coding dengan rapi, terukur, dan siap untuk sprint berikutnya.
