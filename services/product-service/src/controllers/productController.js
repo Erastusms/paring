@@ -64,3 +64,42 @@ exports.listProducts = async (req, res) => {
         res.status(500).json({ error: 'Server error while listing products' });
     }
 };
+
+exports.editProduct = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updates = req.body;
+        
+        const allowedUpdates = ['name', 'description', 'price', 'stock', 'category', 'imageUrl'];
+        const isValidOperation = Object.keys(updates).every((update) => allowedUpdates.includes(update));
+        if (!isValidOperation) {
+            return res.status(400).json({ error: 'Invalid updates' });
+        }
+
+        const product = await Product.findByIdAndUpdate(id, updates, { new: true, runValidators: true });
+        if (!product) {
+            return res.status(404).json({ error: 'Product not found' });
+        }
+
+        res.status(200).json({ message: 'Product updated successfully', product });
+    } catch (error) {
+        console.error('Error editing product:', error);
+        res.status(500).json({ error: 'Server error while editing product' });
+    }
+};
+
+exports.removeProduct = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const product = await Product.findByIdAndDelete(id);
+        if (!product) {
+            return res.status(404).json({ error: 'Product not found' });
+        }
+
+        res.status(200).json({ message: 'Product removed successfully' });
+    } catch (error) {
+        console.error('Error removing product:', error);
+        res.status(500).json({ error: 'Server error while removing product' });
+    }
+};
