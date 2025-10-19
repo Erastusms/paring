@@ -26,6 +26,20 @@ exports.addProduct = async (req, res) => {
     }
 };
 
+exports.getProductById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const product = await Product.findById(id);
+        if (!product) {
+            return res.status(404).json({ error: 'Product not found' });
+        }
+        res.status(200).json({ product });
+    } catch (error) {
+        console.error('Error fetching product:', error);
+        res.status(500).json({ error: 'Server error while fetching product' });
+    }
+};
+
 exports.listProducts = async (req, res) => {
     try {
         const { category, minPrice, maxPrice, limit = 10, page = 1 } = req.query;
@@ -69,7 +83,7 @@ exports.editProduct = async (req, res) => {
     try {
         const { id } = req.params;
         const updates = req.body;
-        
+
         const allowedUpdates = ['name', 'description', 'price', 'stock', 'category', 'imageUrl'];
         const isValidOperation = Object.keys(updates).every((update) => allowedUpdates.includes(update));
         if (!isValidOperation) {
