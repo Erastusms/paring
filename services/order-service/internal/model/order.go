@@ -4,12 +4,23 @@ import (
 	"gorm.io/gorm"
 )
 
+// OrderStatus enum-like
+type OrderStatus string
+
+const (
+	Pending    OrderStatus = "PENDING"
+	Processing OrderStatus = "PROCESSING"
+	Shipped    OrderStatus = "SHIPPED"
+	Delivered  OrderStatus = "DELIVERED"
+	Cancelled  OrderStatus = "CANCELLED"
+)
+
 // Order represents a transaction order in Paring
 type Order struct {
 	gorm.Model
-	UserID     uint      `gorm:"not null"` // From JWT claim
-	TotalPrice float64   `gorm:"not null"`
-	Status     string    `gorm:"default:'PENDING'"`
+	UserID     uint        `gorm:"not null"` // From JWT claim
+	TotalPrice float64     `gorm:"not null"`
+	Status     OrderStatus `gorm:"default:'PENDING'"`
 	Items      []OrderItem
 }
 

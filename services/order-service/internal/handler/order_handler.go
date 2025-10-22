@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"order-service/internal/model"
 	"order-service/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -107,4 +108,30 @@ func (h *OrderHandler) GetOrderHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"order": order})
+}
+
+// GetOrdersHandler handles GET /api/orders?status=...
+func (h *OrderHandler) GetOrdersHandler(c *gin.Context) {
+	userIDAny, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	userID := userIDAny.(uint)
+
+	var status *model.OrderStatus
+	statusStr := c.Query("status")
+	if statusStr != "" {
+		st := model.OrderStatus(statusStr)
+		status = &st
+		// Validasi status valid (future: tambah check enum)
+	}
+
+	orders, err := h.service.GetOrders(userID, status)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch orders"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"orders": orders})
 }

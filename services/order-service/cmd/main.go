@@ -31,6 +31,7 @@ func main() {
 	api.Use(h.AuthMiddleware)  // Apply auth to all /api/orders/*
 	{
 		api.POST("", h.CreateOrderHandler)
+		api.GET("", h.GetOrdersHandler)
 		api.GET("/:id", h.GetOrderHandler)
 	}
 

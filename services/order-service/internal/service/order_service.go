@@ -15,11 +15,11 @@ import (
 )
 
 // OrderService interface
-// OrderService interface
 type OrderService interface {
 	CreateOrder(userID uint, items []OrderItemRequest) (*model.Order, error)
 	GetOrder(id uint) (*model.Order, error)
-	ValidateJWT(tokenString string) (uint, error)  // Tambah ini
+	GetOrders(userID uint, status *model.OrderStatus) ([]model.Order, error)  // Tambah ini
+	ValidateJWT(tokenString string) (uint, error)
 }
 
 // OrderItemRequest for incoming payload
@@ -85,6 +85,10 @@ func (s *orderService) CreateOrder(userID uint, items []OrderItemRequest) (*mode
 // GetOrder fetches order details
 func (s *orderService) GetOrder(id uint) (*model.Order, error) {
 	return s.repo.GetOrderByID(id)
+}
+
+func (s *orderService) GetOrders(userID uint, status *model.OrderStatus) ([]model.Order, error) {
+	return s.repo.GetOrdersByUser(userID, status)
 }
 
 // getProduct calls Product Service API (reusable HTTP client)
