@@ -38,8 +38,9 @@ func (h *OrderHandler) AuthMiddleware(c *gin.Context) {
 		c.Abort()
 		return
 	}
-
+	
 	c.Set("userID", userID)  // Simpan ke context untuk digunakan di handler
+	c.Set("authHeader", token)
 	c.Next()
 }
 
@@ -53,6 +54,18 @@ func (h *OrderHandler) CreateOrderHandler(c *gin.Context) {
 	}
 
 	userID := userIDAny.(uint)
+
+	// AMBIL TOKEN DARI CONTEXT
+    authHeaderAny, exists := c.Get("authHeader")
+    if !exists {
+        // Ini seharusnya tidak terjadi jika middleware berjalan
+        c.Set("status", http.StatusUnauthorized)
+        c.Set("message", "Authorization token not found in context")
+        c.Abort()
+        return
+    }
+    authHeader := authHeaderAny.(string)
+
 	var items []service.OrderItemRequest
 
 	if err := c.ShouldBindJSON(&items); err != nil {
@@ -63,7 +76,7 @@ func (h *OrderHandler) CreateOrderHandler(c *gin.Context) {
 		return
 	}
 
-	order, err := h.service.CreateOrder(userID, items)
+	order, err := h.service.CreateOrder(userID, items, authHeader)
 	if err != nil {
 		c.Set("status", http.StatusInternalServerError)
 		c.Set("message", "Failed to create order")

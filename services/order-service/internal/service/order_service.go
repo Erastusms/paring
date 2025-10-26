@@ -1,12 +1,14 @@
 package service
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"order-service/internal/model"
 	"order-service/internal/repository"
@@ -16,7 +18,7 @@ import (
 
 // OrderService interface
 type OrderService interface {
-	CreateOrder(userID uint, items []OrderItemRequest) (*model.Order, error)
+	CreateOrder(userID uint, items []OrderItemRequest, authHeader string) (*model.Order, error)
 	GetOrder(id uint) (*model.Order, error)
 	GetOrders(userID uint, status *model.OrderStatus) ([]model.Order, error)  // Tambah ini
 	ValidateJWT(tokenString string) (uint, error)
@@ -32,6 +34,7 @@ type OrderItemRequest struct {
 type orderService struct {
 	repo       repository.OrderRepository
 	productURL string
+	userURL    string
 	jwtSecret  string
 }
 
@@ -40,12 +43,13 @@ func NewOrderService(repo repository.OrderRepository) OrderService {
 	return &orderService{
 		repo:       repo,
 		productURL: os.Getenv("PRODUCT_SERVICE_URL"),
+		userURL:    os.Getenv("USER_SERVICE_URL"),
 		jwtSecret:  os.Getenv("JWT_SECRET"),
 	}
 }
 
 // CreateOrder validates and creates order, links to Product
-func (s *orderService) CreateOrder(userID uint, items []OrderItemRequest) (*model.Order, error) {
+func (s *orderService) CreateOrder(userID uint, items []OrderItemRequest, authHeader string) (*model.Order, error) {
 	var totalPrice float64
 	orderItems := make([]model.OrderItem, len(items))
 
@@ -78,8 +82,50 @@ func (s *orderService) CreateOrder(userID uint, items []OrderItemRequest) (*mode
 		return nil, err
 	}
 
+	log.Println("Order created in DB, attempting to update stock...")
+
+	for _, item := range items {
+		if err := s.UpdateProductStock(item.ProductID, -item.Quantity, authHeader); err != nil {
+            log.Printf("Failed to update stock... %v", err)
+            // PENTING: Kembalikan error-nya agar transaksi gagal
+            return nil, err
+        }
+    }
+
 	// Future: Async update stock in Product via message broker
+	log.Println("Stock updated successfully.")
 	return order, nil
+}
+
+// UpdateProductStock calls Product Service to patch stock
+func (s *orderService) UpdateProductStock(productID string, delta int, authHeader string) error {
+	url := fmt.Sprintf("%s/api/products/%s", s.productURL, productID)
+	body := map[string]int{"stock": delta}  // Negative untuk reduce
+	jsonBody, _ := json.Marshal(body)
+
+	req, err := http.NewRequest("PATCH", url, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer " + authHeader)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Periksa jika status code BUKAN di rentang 2xx (sukses)
+    if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+        // Coba baca body error jika ada, untuk log yang lebih baik
+        // (Ini opsional tapi sangat membantu)
+		log.Printf("Failed to update product stock, status: %d", resp.StatusCode)
+        return errors.New("failed to update product stock")
+    }
+
+	return nil
 }
 
 // GetOrder fetches order details
@@ -124,22 +170,65 @@ type ProductResponse struct {
 	Stock int     `json:"stock"`
 }
 
-// ValidateJWT extracts userID from token (reusable auth)
 func (s *orderService) ValidateJWT(tokenString string) (uint, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	// Parse token
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		return []byte(s.jwtSecret), nil
 	})
 	if err != nil || !token.Valid {
-		return 0, errors.New("invalid token")
+		return 0, fmt.Errorf("invalid token: %v", err)
 	}
 
-	// claims, ok := token.Claims.(jwt.MapClaims)
-	// if !ok {
-	// 	return 0, errors.New("invalid claims")
-	// }
+	// Extract claims
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return 0, errors.New("invalid claims in token")
+	}
 
-	// email := claims["sub"].(string) // Asumsi User Service JWT punya sub=email; adjust jika needed
-	// Future: Call User Service to get userID by email
-	// Untuk simple, asumsi userID dari claim atau hardcode test
-	return 1, nil // Ganti dengan real logic
+	// Get email (sub) from claims
+	email, ok := claims["sub"].(string)
+	if !ok || email == "" {
+		return 0, errors.New("missing email (sub) in token claims")
+	}
+
+	log.Printf("[ValidateJWT] Token validated for email: %s", email)
+
+	// Prepare request to User Service
+	url := fmt.Sprintf("%s/api/users/profile", s.userURL)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+tokenString)
+
+	// Execute HTTP request
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("[ValidateJWT] Failed to call User Service: %v", err)
+		return 0, fmt.Errorf("failed to connect to user service: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("user profile not found (status: %d)", resp.StatusCode)
+	}
+
+	// Decode JSON response
+	var userResp UserResponse
+	if err := json.NewDecoder(resp.Body).Decode(&userResp); err != nil {
+		return 0, fmt.Errorf("failed to parse user service response: %v", err)
+	}
+
+	log.Printf("[ValidateJWT] User ID resolved: %d for email: %s", userResp.ID, email)
+	return uint(userResp.ID), nil
+}
+
+// UserResponse from User Service
+type UserResponse struct {
+	ID uint `json:"id"`
+	Email string `json:"email"`
+	Name string `json:"name"`
+	Role string `json:"role"`
+	// Tambah fields lain jika needed
 }
