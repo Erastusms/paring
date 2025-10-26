@@ -24,6 +24,8 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://paring-postgres:5432/paring_user
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: admin
+      JWT_SECRET: myverystrongsecretkeyforjwtsigning123456789012345678901234567890
+      JWT_EXPIRATION: 86400000
     ports:
       - "8081:8081"
 
