@@ -1,19 +1,19 @@
 FROM node:18
 
-# Tentukan working directory di dalam container
+# Tentukan working directory
 WORKDIR /app
 
-# Copy file package.json dan package-lock.json (kalau ada)
+# Copy file package.json dan package-lock.json (jika ada)
 COPY package*.json ./
 
 # Install dependencies
 RUN npm install
 
-# Copy semua source code ke container
+# Copy seluruh source code
 COPY . .
 
-# Expose port sesuai server kamu
+# Expose port server kamu
 EXPOSE 3001
 
-# Jalankan perintah untuk start app
+# Jalankan app
 CMD ["npm", "start"]

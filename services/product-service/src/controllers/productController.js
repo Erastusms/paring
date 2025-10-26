@@ -22,7 +22,7 @@ exports.addProduct = async (req, res) => {
         res.status(201).json({ message: 'Product added successfully', product: newProduct });
     } catch (error) {
         console.error('Error adding product:', error);
-        res.status(500).json({ error: 'Server error while adding product' });
+        res.status(500).json({ error: error.message });
     }
 };
 
@@ -115,5 +115,41 @@ exports.removeProduct = async (req, res) => {
     } catch (error) {
         console.error('Error removing product:', error);
         res.status(500).json({ error: 'Server error while removing product' });
+    }
+};
+
+exports.updateProductStock = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { stock } = req.body; // 'stock' ini adalah delta, misal -1
+
+        console.log(`[Product Service] Received update for ID: ${id} | Delta: ${stock}`);
+
+        const product = await Product.findById(id);
+        if (!product) {
+            console.log(`[Product Service] FAILED: Product not found (ID: ${id})`);
+            return res.status(404).json({ error: 'Product not found' });
+        }
+
+        console.log(`[Product Service] Found product. Old stock: ${product.stock}`);
+
+        // Logika ini sudah benar
+        product.stock += stock;
+
+        console.log(`[Product Service] New stock calculated: ${product.stock}`);
+
+        if (product.stock < 0) {
+            console.log(`[Product Service] FAILED: Stock cannot be negative`);
+            return res.status(400).json({ error: 'Stock cannot be negative' });
+        }
+
+        await product.save(); // Kemungkinan besar gagal di sini
+        console.log(`[Product Service] SUCCESS: Stock saved for ID: ${id}`);
+
+        res.status(200).json({ message: 'Stock updated', product });
+    } catch (error) {
+        // INI YANG KEMUNGKINAN BESAR TERJADI
+        console.error('[Product Service] FATAL ERROR:', error.message);
+        res.status(500).json({ error: 'Server error', message: error.message });
     }
 };
