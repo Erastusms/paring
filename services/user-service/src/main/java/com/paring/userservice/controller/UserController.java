@@ -28,7 +28,8 @@ public class UserController {
 
     @GetMapping("/profile")
     public ResponseEntity<UserResponse> getProfile(Authentication authentication) {
-        String email = (String) authentication.getPrincipal();  // Dari JWT
+        String email = authentication.getName();
+        System.out.println("[Controller] Email from token: " + email);
         return ResponseEntity.ok(userService.getProfile(email));
     }
 }

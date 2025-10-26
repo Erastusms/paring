@@ -9,4 +9,7 @@ spring:
     hibernate:
       ddl-auto: update  # For dev; use 'none' in prod
 server:
-  port: 8081  # Port khusus untuk service ini
+  port: 8081  # Port khusus untuk service ini\
+jwt:
+  secret: myverystrongsecretkeyforjwtsigning123456789012345678901234567890
+  expiration: 86400000

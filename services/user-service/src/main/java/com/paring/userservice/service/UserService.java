@@ -19,6 +19,9 @@ public class UserService {
     @Autowired
     private BCryptPasswordEncoder passwordEncoder;
 
+    @Autowired
+    private JwtUtil jwtUtil;
+
     public UserResponse register(RegisterRequest request) {
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new RuntimeException("Email already exists");
@@ -38,7 +41,7 @@ public class UserService {
             throw new RuntimeException("Invalid credentials");
         }
         // Generate JWT (implement di SecurityConfig nanti)
-        return JwtUtil.generateToken(user.getEmail(), user.getRole());
+        return jwtUtil.generateToken(user.getEmail(), user.getRole());
     }
 
     public UserResponse getProfile(String email) {
