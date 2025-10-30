@@ -172,17 +172,27 @@ type ProductResponse struct {
 
 func (s *orderService) ValidateJWT(tokenString string) (uint, error) {
 	// Parse token
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
+		}
 		return []byte(s.jwtSecret), nil
 	})
-	if err != nil || !token.Valid {
-		return 0, fmt.Errorf("invalid token: %v", err)
+	if err != nil {
+		return 0, err
 	}
 
+	if !token.Valid {
+		return 0, errors.New("invalid token")
+	}
 	// Extract claims
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
 		return 0, errors.New("invalid claims in token")
+	}
+
+	if claims["iss"] != "paring-user-service" {
+		return 0, errors.New("invalid issuer")
 	}
 
 	// Get email (sub) from claims
@@ -192,6 +202,21 @@ func (s *orderService) ValidateJWT(tokenString string) (uint, error) {
 	}
 
 	log.Printf("[ValidateJWT] Token validated for email: %s", email)
+
+	exp, ok := claims["exp"].(float64)
+	if !ok || time.Unix(int64(exp), 0).Before(time.Now()) {
+		return 0, errors.New("token expired")
+	}
+
+	userIdFloat, ok := claims["userId"].(float64)
+	if !ok {
+		return 0, errors.New("missing userId in token")
+	}
+
+	role, ok := claims["role"].(string)
+	if !ok || (role != "USER" && role != "SELLER") {  // Adjust roles di Paring
+		return 0, errors.New("invalid role")
+	}
 
 	// Prepare request to User Service
 	url := fmt.Sprintf("%s/api/users/profile", s.userURL)
@@ -221,7 +246,8 @@ func (s *orderService) ValidateJWT(tokenString string) (uint, error) {
 	}
 
 	log.Printf("[ValidateJWT] User ID resolved: %d for email: %s", userResp.ID, email)
-	return uint(userResp.ID), nil
+	// return uint(userResp.ID), nil
+	return uint(userIdFloat), nil
 }
 
 // UserResponse from User Service

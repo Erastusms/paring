@@ -38,9 +38,10 @@ func (h *OrderHandler) AuthMiddleware(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	
+
 	c.Set("userID", userID)  // Simpan ke context untuk digunakan di handler
 	c.Set("authHeader", token)
+	// c.Set("role", role)
 	c.Next()
 }
 
