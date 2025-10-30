@@ -9,6 +9,8 @@ import com.paring.userservice.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -34,14 +36,14 @@ public class UserService {
         return mapToResponse(saved);
     }
 
-    public String login(LoginRequest request) {
+    public Map<String, String> login(LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("User not found"));
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new RuntimeException("Invalid credentials");
         }
         // Generate JWT (implement di SecurityConfig nanti)
-        return jwtUtil.generateToken(user.getEmail(), user.getRole());
+        return jwtUtil.generateTokens(user.getEmail(), user.getRole(), user.getId());
     }
 
     public UserResponse getProfile(String email) {
