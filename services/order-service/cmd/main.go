@@ -20,7 +20,8 @@ func main() {
 
 	gormDB := db.ConnectDB()
 	repo := repository.NewOrderRepository(gormDB)
-	svc := service.NewOrderService(repo)
+	paymentGateway := service.NewMockPaymentGateway()
+	svc := service.NewOrderService(repo, paymentGateway)
 	h := handler.NewOrderHandler(svc)
 
 	r := gin.Default()

@@ -10,7 +10,8 @@ import (
 type OrderRepository interface {
 	CreateOrder(order *model.Order) error
 	GetOrderByID(id uint) (*model.Order, error)
-	GetOrdersByUser(userID uint, status *model.OrderStatus) ([]model.Order, error)  // Tambah ini
+	GetOrdersByUser(userID uint, status *model.OrderStatus) ([]model.Order, error)
+	UpdateOrderStatus(id uint, status model.OrderStatus) error
 }
 
 // orderRepo struct implements OrderRepository
@@ -47,4 +48,8 @@ func (r *orderRepo) GetOrdersByUser(userID uint, status *model.OrderStatus) ([]m
 		return nil, err
 	}
 	return orders, nil
+}
+
+func (r *orderRepo) UpdateOrderStatus(id uint, status model.OrderStatus) error {
+	return r.db.Model(&model.Order{}).Where("id = ?", id).Update("status", status).Error
 }

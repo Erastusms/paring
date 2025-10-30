@@ -20,8 +20,9 @@ import (
 type OrderService interface {
 	CreateOrder(userID uint, items []OrderItemRequest, authHeader string) (*model.Order, error)
 	GetOrder(id uint) (*model.Order, error)
-	GetOrders(userID uint, status *model.OrderStatus) ([]model.Order, error)  // Tambah ini
+	GetOrders(userID uint, status *model.OrderStatus) ([]model.Order, error)
 	ValidateJWT(tokenString string) (uint, error)
+	UpdateOrderStatus(id uint, status model.OrderStatus) error
 }
 
 // OrderItemRequest for incoming payload
@@ -36,15 +37,17 @@ type orderService struct {
 	productURL string
 	userURL    string
 	jwtSecret  string
+	paymentGateway  PaymentGateway
 }
 
 // NewOrderService creates service instance
-func NewOrderService(repo repository.OrderRepository) OrderService {
+func NewOrderService(repo repository.OrderRepository, paymentGateway PaymentGateway) OrderService {
 	return &orderService{
 		repo:       repo,
 		productURL: os.Getenv("PRODUCT_SERVICE_URL"),
 		userURL:    os.Getenv("USER_SERVICE_URL"),
 		jwtSecret:  os.Getenv("JWT_SECRET"),
+		paymentGateway: paymentGateway,
 	}
 }
 
@@ -91,9 +94,27 @@ func (s *orderService) CreateOrder(userID uint, items []OrderItemRequest, authHe
             return nil, err
         }
     }
-
+	
 	// Future: Async update stock in Product via message broker
 	log.Println("Stock updated successfully.")
+
+	// Call payment mock untuk simulasi transaksi
+	transactionID, err := s.paymentGateway.ConfirmPayment(order.ID, totalPrice)
+	if err != nil {
+		// Update status ke CANCELLED jika fail
+		if updateErr := s.UpdateOrderStatus(order.ID, model.Cancelled); updateErr != nil {
+			log.Printf("Failed to update order status to CANCELLED: %v", updateErr)
+		}
+		return nil, errors.New("payment failed: " + err.Error())
+	}
+
+	// Jika success, update ke PROCESSING
+	if err := s.UpdateOrderStatus(order.ID, model.Processing); err != nil {
+		log.Printf("Failed to update order status to PROCESSING: %v", err)
+	}
+
+	log.Printf("Payment success for order %d: transaction %s", order.ID, transactionID)
+
 	return order, nil
 }
 
@@ -161,13 +182,6 @@ func (s *orderService) getProduct(id string) (*ProductResponse, error) {
 
 	log.Printf("[DEBUG] Product response: %+v", wrapper.Product)
 	return &wrapper.Product, nil
-}
-
-// ProductResponse from Product Service
-type ProductResponse struct {
-	ID    string  `json:"_id"`
-	Price float64 `json:"price"`
-	Stock int     `json:"stock"`
 }
 
 func (s *orderService) ValidateJWT(tokenString string) (uint, error) {
@@ -250,6 +264,10 @@ func (s *orderService) ValidateJWT(tokenString string) (uint, error) {
 	return uint(userIdFloat), nil
 }
 
+func (s *orderService) UpdateOrderStatus(id uint, status model.OrderStatus) error {
+	return s.repo.UpdateOrderStatus(id, status)
+}
+
 // UserResponse from User Service
 type UserResponse struct {
 	ID uint `json:"id"`
@@ -257,4 +275,11 @@ type UserResponse struct {
 	Name string `json:"name"`
 	Role string `json:"role"`
 	// Tambah fields lain jika needed
+}
+
+// ProductResponse from Product Service
+type ProductResponse struct {
+	ID    string  `json:"_id"`
+	Price float64 `json:"price"`
+	Stock int     `json:"stock"`
 }
