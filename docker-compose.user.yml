@@ -1,0 +1,33 @@
+services:
+  paring-postgres:
+    image: postgres:16
+    container_name: paring-postgres
+    environment:
+      POSTGRES_DB: paring_user
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d paring_user"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  user-service:
+    build: ./services/user-service
+    container_name: paring-user-service
+    depends_on:
+      paring-postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://paring-postgres:5432/paring_user
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: admin
+      JWT_SECRET: myverystrongsecretkeyforjwtsigning123456789012345678901234567890
+      JWT_EXPIRATION: 86400000
+    ports:
+      - "8081:8081"
+
+volumes:
+  pgdata:

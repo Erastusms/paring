@@ -1,0 +1,56 @@
+### Desain Arsitektur Dasar Microservices
+
+Arsitektur dasar Paring mengadopsi pola microservices dengan bounded contexts: User Service handle autentikasi dan data user (synchronous REST), sementara Product Service manage catalog dan stok (bisa sync/async). Komunikasi antar service via HTTP/REST untuk simplicity awal, tapi evolve ke gRPC atau messaging untuk performance. Database per service untuk decoupling (Database-per-Service pattern).
+
+**Komponen Utama:**
+- **API Gateway**: Entry point untuk client (e.g., mobile/web), route requests ke service terkait. Gunakan Spring Cloud Gateway untuk Java atau Express Gateway untuk Node.js.
+- **Service Discovery**: Eureka (untuk Spring) atau Consul untuk auto-register service.
+- **Communication**: REST APIs initially; tambah Kafka untuk events seperti "product sold" yang trigger update user cart.
+- **Security**: JWT untuk auth, dikelola oleh User Service dan propagated ke lainnya.
+- **Monitoring**: Prometheus + Grafana untuk metrics.
+- **Deployment**: Docker + Kubernetes untuk orchestration.
+
+Untuk transaksi jual beli dasar:
+1. User login/register via User Service.
+2. Browse/search products via Product Service.
+3. Future: Order Service untuk checkout, integrate payment (e.g., Stripe).
+
+Ini memastikan scalability: setiap service bisa scale independently, cocok untuk Paring sebagai platform transaksi jual beli.
+
+### Sketsa Diagram Microservices (DEV-02)
+
+Berikut sketsa diagram sederhana menggunakan ASCII art untuk visualisasi cepat.
+Untuk produksi, gunakan tools seperti Draw.io atau Lucidchart, lalu export ke docs/architecture.drawio. 
+Diagram ini menggambarkan flow transaksi jual beli: client -> gateway -> services -> databases.
+
+```
++-------------------+       +-------------------+       +-------------------+
+|   Client (Web/    |       |   API Gateway     |       |   User Service    |
+|     Mobile App)   | <---> | (e.g., Spring     | <---> | (Spring Boot/Java)|
++-------------------+       |   Cloud Gateway)  |       +-------------------+
+                            +-------------------+              |
+                                   |                           v
+                                   |                 +-------------------+
+                                   |                 |   PostgreSQL DB   |
+                                   |                 | (User data, auth) |
+                                   |                 +-------------------+
+                                   v
+                            +-------------------+
+                            | Product Service   |
+                            | (Node.js/Express)|
+                            +-------------------+
+                                       |
+                                       v
+                            +-------------------+
+                            |   MongoDB DB      |
+                            | (Product catalog, |
+                            |  stock)           |
+                            +-------------------+
+
+Events (future): Kafka/RabbitMQ for async updates, e.g., product stock change -> notify user service.
+```
+
+Penjelasan Diagram:
+- **Flow Transaksi Jual Beli**: Client request login ke Gateway -> User Service verifikasi -> return JWT. Lalu, request products ke Gateway -> Product Service query MongoDB -> return list. Untuk beli, (future) Order Service coordinate user + product.
+- **Scalability Points**: Horizontal scaling per service; circuit breakers (Resilience4j di Spring) untuk fault tolerance.
+- Commit diagram ini ke repo: Buat file docs/architecture.md dengan ASCII ini, atau upload image jika generate via tool.

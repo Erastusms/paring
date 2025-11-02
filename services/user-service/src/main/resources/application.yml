@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://paring-postgres:5432/paring_user
+    username: postgres
+    password: admin
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    show-sql: true  # Untuk debug
+    hibernate:
+      ddl-auto: update  # For dev; use 'none' in prod
+server:
+  port: 8081  # Port khusus untuk service ini\
+jwt:
+  secret: myverystrongsecretkeyforjwtsigning123456789012345678901234567890
+  expiration: 86400000        # 1 day in ms
+  refresh-expiration: 604800000  # 7 days in ms
+  issuer: paring-user-service

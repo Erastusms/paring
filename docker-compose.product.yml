@@ -1,0 +1,32 @@
+services:
+  paring-mongo:
+    image: mongo:latest
+    container_name: paring-mongo
+    ports:
+      - "27018:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=pass
+
+  product-service:
+    build: ./services/product-service
+    container_name: paring-product-service
+    depends_on:
+      - paring-mongo
+    environment:
+      - NODE_ENV=development
+      - JWT_SECRET=myverystrongsecretkeyforjwtsigning123456789012345678901234567890
+      - MONGO_URI=mongodb://admin:pass@paring-mongo:27017/paring_product_db?authSource=admin
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./services/product-service:/app # Mount kode lokal ke container
+      - /app/node_modules # Hindari overwrite folder node_modules
+    command: npm run dev
+
+volumes:
+  mongo_data:
+
+networks:
+  paring-network:
+    driver: bridge
