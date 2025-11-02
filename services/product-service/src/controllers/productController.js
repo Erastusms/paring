@@ -1,13 +1,13 @@
 const Product = require('../models/Product');
+const asyncHandler = require('../middleware/asyncHandler');
+const ResponseHandler = require('../utils/responseHandler');
+const Validators = require('../utils/validators');
 
-exports.addProduct = async (req, res) => {
-    try {
+class ProductController {
+    addProduct = asyncHandler(async (req, res) => {
         const { name, description, price, stock, category, imageUrl, sellerId } = req.body;
 
-        if (price <= 0) {
-            return res.status(400).json({ error: 'Price must be positive' });
-        }
-
+        Validators.validatePositiveNumber(price, 'Price');
         const newProduct = new Product({
             name,
             description,
@@ -19,137 +19,119 @@ exports.addProduct = async (req, res) => {
         });
 
         await newProduct.save();
-        res.status(201).json({ message: 'Product added successfully', product: newProduct });
-    } catch (error) {
-        console.error('Error adding product:', error);
-        res.status(500).json({ error: error.message });
-    }
-};
+        return ResponseHandler.created(res, newProduct, 'Product added successfully');
+    });
 
-exports.getProductById = async (req, res) => {
-    try {
+    getProductById = asyncHandler(async (req, res) => {
         const { id } = req.params;
         const product = await Product.findById(id);
-        if (!product) {
-            return res.status(404).json({ error: 'Product not found' });
-        }
-        res.status(200).json({ product });
-    } catch (error) {
-        console.error('Error fetching product:', error);
-        res.status(500).json({ error: 'Server error while fetching product' });
-    }
-};
 
-exports.listProducts = async (req, res) => {
-    try {
+        if (!product) {
+            return ResponseHandler.notFound(res, 'Product');
+        }
+
+        return ResponseHandler.success(res, product, 'Product retrieved successfully');
+    });
+
+    listProducts = asyncHandler(async (req, res) => {
         const { category, minPrice, maxPrice, limit = 10, page = 1 } = req.query;
         const query = {};
         if (category) {
             query.category = category;
         }
+
         if (minPrice || maxPrice) {
             query.price = {};
             if (minPrice) query.price.$gte = Number(minPrice);
             if (maxPrice) query.price.$lte = Number(maxPrice);
         }
 
-        // Pagination: skip = (page-1) * limit
+        // Pagination
         const skip = (Number(page) - 1) * Number(limit);
-
-        const products = await Product.find(query)
-            .skip(skip)
-            .limit(Number(limit))
-            .sort({ createdAt: -1 });  // Sort by newest first
-
-        const total = await Product.countDocuments(query);  // Untuk metadata pagination
-
-        res.status(200).json({
-            message: 'Products listed successfully',
+        const [products, total] = await Promise.all([
+            Product.find(query)
+                .skip(skip)
+                .limit(Number(limit))
+                .sort({ createdAt: -1 }),
+            Product.countDocuments(query)
+        ]);
+        const pagination = {
+            total,
+            page: Number(page),
+            limit: Number(limit),
+            totalPages: Math.ceil(total / Number(limit))
+        };
+        const result = {
             products,
-            pagination: {
-                total,
-                page: Number(page),
-                limit: Number(limit),
-                totalPages: Math.ceil(total / limit)
-            }
-        });
-    } catch (error) {
-        console.error('Error listing products:', error);
-        res.status(500).json({ error: 'Server error while listing products' });
-    }
-};
+            ...pagination
+        }
+        return ResponseHandler.success(
+            res,
+            result,
+            'Products retrieved successfully'
+        );
+    });
 
-exports.editProduct = async (req, res) => {
-    try {
+    editProduct = asyncHandler(async (req, res) => {
         const { id } = req.params;
         const updates = req.body;
 
         const allowedUpdates = ['name', 'description', 'price', 'stock', 'category', 'imageUrl'];
-        const isValidOperation = Object.keys(updates).every((update) => allowedUpdates.includes(update));
-        if (!isValidOperation) {
-            return res.status(400).json({ error: 'Invalid updates' });
+        Validators.validateAllowedFields(updates, allowedUpdates);
+
+        if (updates.price) {
+            Validators.validatePositiveNumber(updates.price, 'Price');
         }
 
-        const product = await Product.findByIdAndUpdate(id, updates, { new: true, runValidators: true });
+        const product = await Product.findByIdAndUpdate(
+            id,
+            updates,
+            { new: true, runValidators: true }
+        );
+
         if (!product) {
-            return res.status(404).json({ error: 'Product not found' });
+            return ResponseHandler.notFound(res, 'Product');
         }
 
-        res.status(200).json({ message: 'Product updated successfully', product });
-    } catch (error) {
-        console.error('Error editing product:', error);
-        res.status(500).json({ error: 'Server error while editing product' });
-    }
-};
+        return ResponseHandler.success(res, product, 'Product updated successfully');
+    });
 
-exports.removeProduct = async (req, res) => {
-    try {
+    removeProduct = asyncHandler(async (req, res) => {
         const { id } = req.params;
-
         const product = await Product.findByIdAndDelete(id);
+
         if (!product) {
-            return res.status(404).json({ error: 'Product not found' });
+            return ResponseHandler.notFound(res, 'Product');
         }
 
-        res.status(200).json({ message: 'Product removed successfully' });
-    } catch (error) {
-        console.error('Error removing product:', error);
-        res.status(500).json({ error: 'Server error while removing product' });
-    }
-};
+        return ResponseHandler.success(res, product, 'Product removed successfully');
+    });
 
-exports.updateProductStock = async (req, res) => {
-    try {
+    updateProductStock = asyncHandler(async (req, res) => {
         const { id } = req.params;
-        const { stock } = req.body; // 'stock' ini adalah delta, misal -1
+        const { stock } = req.body;
 
-        console.log(`[Product Service] Received update for ID: ${id} | Delta: ${stock}`);
+        console.log(`[Product Service] Updating stock for ID: ${id} | Delta: ${stock}`);
 
         const product = await Product.findById(id);
+
         if (!product) {
-            console.log(`[Product Service] FAILED: Product not found (ID: ${id})`);
-            return res.status(404).json({ error: 'Product not found' });
+            return ResponseHandler.notFound(res, 'Product');
         }
 
-        console.log(`[Product Service] Found product. Old stock: ${product.stock}`);
+        console.log(`[Product Service] Current stock: ${product.stock}`);
+        const newStock = product.stock + Number(stock);
+        console.log(`[Product Service] New stock: ${newStock}`);
 
-        // Logika ini sudah benar
-        product.stock += stock;
-
-        console.log(`[Product Service] New stock calculated: ${product.stock}`);
-
-        if (product.stock < 0) {
-            console.log(`[Product Service] FAILED: Stock cannot be negative`);
-            return res.status(400).json({ error: 'Stock cannot be negative' });
+        if (newStock < 0) {
+            console.log(`[Product Service] Stock cannot be negative`);
+            return ResponseHandler.badRequest(res, 'Insufficient stock');
         }
 
-        await product.save(); // Kemungkinan besar gagal di sini
-        console.log(`[Product Service] SUCCESS: Stock saved for ID: ${id}`);
+        product.stock = newStock;
+        await product.save();
+        return ResponseHandler.success(res, product, 'Stock updated successfully');
+    });
+}
 
-        res.status(200).json({ message: 'Stock updated', product });
-    } catch (error) {
-        // INI YANG KEMUNGKINAN BESAR TERJADI
-        console.error('[Product Service] FATAL ERROR:', error.message);
-        res.status(500).json({ error: 'Server error', message: error.message });
-    }
-};
+module.exports = new ProductController();
